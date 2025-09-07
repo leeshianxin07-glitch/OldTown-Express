@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OldTown Express — 极速下单</title>
+  <style>
+    :root{
+      --brand:#2e2a24;
+      --accent:#f2c94c;
+      --bg:#faf7f2;
+      --text:#1b1b1b;
+      --muted:#6b6b6b;
+      --card:#ffffff;
+      --ok:#2ecc71;
+      --danger:#e74c3c;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text)}
+    header{
+      position:sticky;top:0;z-index:10;
+      display:flex;align-items:center;gap:12px;justify-content:space-between;
+      padding:12px 16px;background:var(--card);border-bottom:1px solid #eee;
+    }
+    .brand{
+      display:flex;align-items:center;gap:12px;
+    }
+    .logo{
+      width:36px;height:36px;border-radius:50%;
+      background: radial-gradient(circle at 35% 35%, #7a5c2f 0%, #5a3c1a 55%, #3b2a1a 100%);
+      position:relative;box-shadow:0 2px 6px rgba(0,0,0,.1);
+    }
+    .logo:after{
+      content:"☕"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:20px;
+      filter: drop-shadow(0 1px 0 rgba(0,0,0,.35));
+    }
+    .title{font-weight:800; letter-spacing:.2px}
+    .tagline{font-size:12px;color:var(--muted)}
+    .pill{
+      background:var(--accent); color:#221a00; padding:6px 10px; border-radius:999px; font-weight:700; font-size:12px;
+    }
+    main{max-width:1000px;margin:0 auto;padding:16px}
+    .grid{
+      display:grid; grid-template-columns:repeat(12, 1fr); gap:16px;
+    }
+    .menu{grid-column: span 8; display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:12px;}
+    .cart{grid-column: span 4; background:var(--card); padding:12px; border:1px solid #eee; border-radius:12px; position:sticky; top:68px; height:fit-content}
+    .card{
+      background:var(--card); padding:12px;border:1px solid #eee;border-radius:12px; display:flex; flex-direction:column; gap:8px; min-height:170px;
+    }
+    .price{font-weight:800}
+    .muted{color:var(--muted); font-size:12px}
+    .row{display:flex; align-items:center; justify-content:space-between; gap:8px}
+    .qty{display:flex; align-items:center; gap:8px}
+    button, .btn{
+      border:0; background:#1f1f1f; color:#fff; padding:10px 12px; border-radius:10px; cursor:pointer; font-weight:700;
+    }
+    button:disabled{opacity:.6; cursor:not-allowed}
+    .ghost{background:#f4f4f4; color:#222}
+    .danger{background:var(--danger)}
+    .ok{background:var(--ok)}
+    .accent{background:var(--accent); color:#221a00}
+    .cart-list{display:flex; flex-direction:column; gap:10px; margin:12px 0}
+    .cart-item{display:flex; align-items:center; justify-content:space-between; gap:8px}
+    .line{height:1px;background:#eee;margin:8px 0}
+    .footnote{font-size:12px;color:var(--muted);margin-top:8px}
+    .progress{height:10px; background:#eee; border-radius:999px; overflow:hidden}
+    .bar{height:100%; width:0%; background:var(--accent); transition:width .2s ease}
+    .ready{display:none; padding:12px; border:1px dashed var(--ok); border-radius:10px; background:#f6fff8}
+    .ready h3{margin:4px 0}
+    .sr-only{position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden}
+    @media (max-width: 840px){
+      .menu{grid-column: span 12}
+      .cart{grid-column: span 12; position:static}
+      header{flex-wrap:wrap; gap:8px}
+    }
+  </style>
+</head>
+<body>
+  <a class="sr-only" href="#menu">跳至菜单</a>
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <div class="title">OldTown Express</div>
+        <div class="tagline">快速 · 方便 · Grab & Go</div>
+      </div>
+    </div>
+    <div class="pill" aria-label="承诺：下单后 3 秒出单">下单 3 秒出单*</div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <section class="menu" id="menu" aria-label="点单菜单">
+        <!-- Menu cards injected by JS -->
+      </section>
+      <aside class="cart" aria-label="购物车与下单">
+        <div class="row">
+          <strong>购物车</strong>
+          <button class="ghost" id="clearCart" aria-label="清空购物车">清空</button>
+        </div>
+        <div class="cart-list" id="cartList" aria-live="polite" aria-atomic="true"></div>
+        <div class="line"></div>
+        <div class="row">
+          <div class="muted">小计</div>
+          <div id="subtotal" class="price">RM 0.00</div>
+        </div>
+        <div class="row">
+          <input id="name" placeholder="称呼（可选）" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:10px" />
+          <button id="checkout">下单</button>
+        </div>
+
+        <div id="prep" style="display:none; margin-top:12px">
+          <div class="row"><strong>正在准备…</strong><span id="countdown" class="muted">3</span></div>
+          <div class="progress" aria-hidden="true"><div class="bar" id="bar"></div></div>
+          <div class="footnote">平均出单时间 3 秒，实际以现场为准。</div>
+        </div>
+
+        <div id="ready" class="ready" role="status" aria-live="assertive" aria-atomic="true">
+          <h3>✅ 已完成！</h3>
+          <p id="orderMsg" style="margin:0 0 8px 0"></p>
+          <div class="row">
+            <button id="orderAgain" class="accent">再来一单</button>
+            <button id="reset" class="ghost">重置</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <p class="footnote">* 为示范用途：下单后会模拟 3 秒内完成并显示“已完成”。</p>
+  </main>
+
+  <script>
+    const MENU = [
+      {id:'kopi-o', name:'Kopi O', desc:'传统布滤挂法，香浓微苦', price:4.50},
+      {id:'kopi-c', name:'Kopi C', desc:'少甜淡奶，顺滑不腻', price:5.50},
+      {id:'white', name:'白咖啡', desc:'怡保风味，丝滑奶香', price:6.90},
+      {id:'americano', name:'Americano', desc:'高压萃取，清爽顺口', price:7.50},
+      {id:'latte', name:'拿铁', desc:'浓缩配鲜奶，柔和平衡', price:8.90},
+      {id:'capp', name:'卡布奇诺', desc:'奶泡绵密，经典口味', price:8.90},
+      {id:'teh', name:'Teh C', desc:'淡奶茶，柔顺清香', price:5.20},
+      {id:'milo', name:'Milo 冰', desc:'国民最爱，香浓可可', price:6.00},
+    ];
+
+    const cart = new Map();
+
+    const fmt = n => 'RM ' + n.toFixed(2);
+
+    function renderMenu(){
+      const $menu = document.querySelector('.menu');
+      $menu.innerHTML = '';
+      MENU.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div>
+            <div class="row">
+              <strong>${item.name}</strong>
+              <span class="price">${fmt(item.price)}</span>
+            </div>
+            <div class="muted">${item.desc}</div>
+          </div>
+          <div class="row">
+            <div class="qty">
+              <button class="ghost" data-act="dec" data-id="${item.id}" aria-label="减少 ${item.name} 数量">-</button>
+              <span id="q_${item.id}">0</span>
+              <button data-act="inc" data-id="${item.id}" aria-label="增加 ${item.name} 数量">+</button>
+            </div>
+            <button class="accent" data-act="add" data-id="${item.id}">加入</button>
+          </div>
+        `;
+        $menu.appendChild(card);
+      });
+
+      $menu.addEventListener('click', (e)=>{
+        const btn = e.target.closest('button');
+        if(!btn) return;
+        const id = btn.dataset.id;
+        const item = MENU.find(m => m.id === id);
+        if(!item) return;
+        const act = btn.dataset.act;
+        let q = cart.get(id)?.qty || 0;
+        if(act === 'inc'){ q++; }
+        if(act === 'dec'){ q = Math.max(0, q-1); }
+        if(act === 'add'){ q++; }
+        if(q === 0){ cart.delete(id); } else { cart.set(id, {item, qty:q}); }
+        syncQtyBadges();
+        renderCart();
+      });
+    }
+
+    function syncQtyBadges(){
+      MENU.forEach(m=>{
+        const el = document.getElementById('q_'+m.id);
+        if(el) el.textContent = cart.get(m.id)?.qty || 0;
+      });
+    }
+
+    function renderCart(){
+      const $list = document.getElementById('cartList');
+      $list.innerHTML = '';
+      let total = 0;
+      cart.forEach(({item, qty})=>{
+        const line = document.createElement('div');
+        line.className = 'cart-item';
+        const lineTotal = item.price * qty;
+        total += lineTotal;
+        line.innerHTML = `
+          <div style="display:flex; align-items:center; gap:8px">
+            <strong>${item.name}</strong>
+            <span class="muted">× ${qty}</span>
+          </div>
+          <div class="row" style="gap:6px">
+            <span>${fmt(lineTotal)}</span>
+            <button class="ghost" data-remove="${item.id}" aria-label="移除 ${item.name}">×</button>
+          </div>
+        `;
+        $list.appendChild(line);
+      });
+      document.getElementById('subtotal').textContent = fmt(total);
+    }
+
+    document.getElementById('clearCart').addEventListener('click', ()=>{
+      cart.clear(); syncQtyBadges(); renderCart();
+    });
+
+    document.getElementById('cartList').addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-remove]');
+      if(!btn) return;
+      cart.delete(btn.dataset.remove);
+      syncQtyBadges(); renderCart();
+    });
+
+    function placeOrder(){
+      if(cart.size === 0){
+        alert('请先选择饮品～');
+        return;
+      }
+      document.getElementById('checkout').disabled = true;
+      document.getElementById('prep').style.display = 'block';
+      const ready = document.getElementById('ready');
+      ready.style.display = 'none';
+
+      const name = (document.getElementById('name').value || '').trim();
+      const orderId = Math.floor(100000 + Math.random()*900000);
+      const msg = name ? `${name}，你的订单 #${orderId} 已完成！` : `订单 #${orderId} 已完成！`;
+      document.getElementById('orderMsg').textContent = msg;
+
+      // 3-second simulated prep with progress and countdown
+      const bar = document.getElementById('bar');
+      const countdown = document.getElementById('countdown');
+      let ms = 3000;
+      bar.style.width = '0%';
+      countdown.textContent = Math.ceil(ms/1000);
+      const t0 = performance.now();
+
+      const tick = () => {
+        const elapsed = performance.now() - t0;
+        const p = Math.min(1, elapsed / ms);
+        bar.style.width = (p*100).toFixed(0) + '%';
+        const left = Math.ceil((ms - elapsed)/1000);
+        countdown.textContent = Math.max(0, left);
+        if(p < 1){
+          requestAnimationFrame(tick);
+        }else{
+          // done
+          document.getElementById('prep').style.display = 'none';
+          ready.style.display = 'block';
+          // simple audio cue using Web Audio API (no external file)
+          try{
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ctx.createOscillator(); const g = ctx.createGain();
+            o.type = 'triangle'; o.frequency.setValueAtTime(880, ctx.currentTime);
+            g.gain.setValueAtTime(0.0001, ctx.currentTime);
+            o.connect(g); g.connect(ctx.destination);
+            o.start();
+            g.gain.exponentialRampToValueAtTime(0.6, ctx.currentTime + 0.02);
+            o.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.2);
+            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+            o.stop(ctx.currentTime + 0.45);
+          }catch(e){/* ignore */}
+        }
+      };
+      requestAnimationFrame(tick);
+    }
+
+    document.getElementById('checkout').addEventListener('click', placeOrder);
+    document.getElementById('orderAgain').addEventListener('click', ()=>{
+      document.getElementById('ready').style.display = 'none';
+      document.getElementById('checkout').disabled = false;
+      cart.clear(); syncQtyBadges(); renderCart();
+    });
+    document.getElementById('reset').addEventListener('click', ()=>{
+      location.reload();
+    });
+
+    // init
+    renderMenu(); renderCart();
+  </script>
+</body>
+</html>
